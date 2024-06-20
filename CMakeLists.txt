@@ -8,3 +8,7 @@ add_subdirectory(extern)
 add_executable(test
     src/test.cpp
 )
+
+target_link_libraries(test PRIVATE
+    Cesium3DTilesReader
+)
