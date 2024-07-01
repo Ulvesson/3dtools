@@ -32,8 +32,8 @@ public:
         , _texture(texture) {}
 
     void clearWorkdir() const {
-        for (const fs::path& item : fs::directory_iterator(_workdir)) {
-            fs::remove_all(item);
+        for (const fs::path& item : fs::recursive_directory_iterator(_workdir)) {
+            if(item.extension() == ".glb") fs::remove(item);
         }
     }
 
@@ -66,7 +66,26 @@ public:
             return;
         }
         auto model = result.model.value();
+        std::vector<std::byte> bufferData;
+        if (model.buffers.size() != 1 /*HAXXOR*/) {
+            std::cout << "Unsupported buffer count\n";
+            return;
+        }
         if (model.images.size() > 0) {
+            bufferData.assign(model.buffers.at(0).cesium.data.cbegin(), model.buffers.at(0).cesium.data.cend());
+            uint64_t offset = bufferData.size();
+            uint64_t size =_texturedata.size();
+            std::for_each_n(_texturedata.begin(), _texturedata.size(), [&bufferData](const auto& n) { bufferData.push_back(n); });
+            model.buffers.at(0).byteLength = model.buffers.at(0).cesium.data.size();
+            int32_t bufferViewIdx = model.bufferViews.size();
+            CesiumGltf::BufferView bufferView;
+            bufferView.buffer = model.buffers.size() - 1;
+            bufferView.byteLength = size;
+            bufferView.byteOffset = offset;
+            model.bufferViews.push_back(bufferView);
+            for (auto& image : model.images) {
+                image.bufferView = bufferViewIdx;
+            }
             // int32_t bufferIdx = model.buffers.size();
             // int32_t bufferViewIdx = model.bufferViews.size();
             // CesiumGltf::Buffer buffer;
@@ -78,23 +97,23 @@ public:
             // bufferView.byteOffset = 0;
             // bufferView.byteLength = _texturedata.size();
             // model.bufferViews.push_back(bufferView);
-
-            // for (auto& image : model.images) {
-            //     image.bufferView = bufferViewIdx;
-            // }
         }
 
-        // std::vector<std::byte> bufferData;
         // for (auto& buf : model.buffers) {
         //     bufferData.insert(std::end(bufferData), std::begin(buf.cesium.data), std::end(buf.cesium.data));
         // }
 
-        if (model.buffers.size() != 1) {
-            std::cout << "Buffers: " << model.buffers.size() << std::endl;
+        // if (model.buffers.size() != 1) {
+        //     std::cout << "Buffers: " << model.buffers.size() << std::endl;
+        // }
+
+        if (bufferData.size() == 0) {
+            std::cout << "Error writing glb, empty buffer" << std::endl;
+            return;
         }
 
         CesiumGltfWriter::GltfWriter writer;
-        auto writeResult = writer.writeGlb(model, gsl::span(model.buffers[0].cesium.data));
+        auto writeResult = writer.writeGlb(model, gsl::span(bufferData));
 
         if (writeResult.errors.size() > 0) {
             std::cout << "Error writing glb" << std::endl;
@@ -137,18 +156,19 @@ public:
                 if (contentPath.extension() == ".glb") {
                     processContent(root, contentPath);
                     _processedCount++;
+                    std::cout << _processedCount << "\n";
                 }
                 // Early exit for now.
-                // else if (contentPath.extension() == ".json") {
-                //     auto result = readTileset(root/contentPath);
-                //     if (result.errors.size() > 0) {
-                //         std::cout << "Invalid input: " << content.c_str();
-                //         return EXIT_FAILURE;
-                //     }
-                //     if (traverse((root/content).parent_path(), result.value.value()) == EXIT_FAILURE) {
-                //         return EXIT_FAILURE;
-                //     }
-                // }
+                else if (contentPath.extension() == ".json") {
+                    auto result = readTileset(root/contentPath);
+                    if (result.errors.size() > 0) {
+                        std::cout << "Invalid input: " << content.c_str();
+                        return EXIT_FAILURE;
+                    }
+                    if (traverse((root/content).parent_path(), result.value.value()) == EXIT_FAILURE) {
+                        return EXIT_FAILURE;
+                    }
+                }
             }
 
             for (auto& child : tile.children) {

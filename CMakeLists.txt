@@ -14,3 +14,11 @@ target_link_libraries(test PRIVATE
     CesiumGltfReader
     CesiumGltfWriter
 )
+
+add_executable(processtile src/proc.cpp)
+
+target_link_libraries(processtile PRIVATE
+    Cesium3DTilesReader
+    CesiumGltfReader
+    CesiumGltfWriter
+)
