@@ -7,6 +7,7 @@
 #include <iostream>
 #include <queue>
 #include <glm/glm.hpp>
+#include <glm/vec3.hpp>
 
 namespace fs = std::filesystem;
 
@@ -57,6 +58,43 @@ public:
         return true;
     }
 
+    void clearImageData(CesiumGltf::Model& model) {
+        for (auto& image : model.images) {
+            auto& bufferView = model.bufferViews[image.bufferView];
+            auto& buffer = model.buffers.at(bufferView.buffer);
+            auto data = gsl::span(buffer.cesium.data).subspan(bufferView.byteOffset, bufferView.byteLength);
+            std::fill(data.begin(), data.end(), std::byte(0));
+        }
+    }
+
+    void processMeshes(CesiumGltf::Model& model) {
+        for (auto& mesh : model.meshes) {
+            for (auto& primitive : mesh.primitives) {
+                int idx = primitive.attributes.at("POSITION");
+                auto& bufferView = model.bufferViews[idx];
+                auto& buffer = model.buffers.at(bufferView.buffer);
+                auto data = gsl::span(buffer.cesium.data).subspan(bufferView.byteOffset, bufferView.byteLength);
+                const int64_t byteStride = bufferView.byteStride.value();
+                auto pos = data.begin();
+                float min = 100000;
+                float max = -100000;
+                while (pos != data.end()) {
+                    glm::vec3* p = reinterpret_cast<glm::vec3*>(&pos[0]);
+                    min = p->z < min ? p->z : min;
+                    max = p->z > max ? p->z : max;
+                    pos += byteStride;
+                }
+                float z = (max - min) / 2.0 + min;
+                pos = data.begin();
+                while (pos != data.end()) {
+                    glm::vec3* p = reinterpret_cast<glm::vec3*>(&pos[0]);
+                    p->z = z;
+                    pos += byteStride;
+                }
+            }
+        }
+    }
+
     void processContent(const fs::path& root, const fs::path& tile) {
         CesiumGltfReader::GltfReader reader;
         auto result = reader.readGltf(util::readFile(root/tile));
@@ -67,10 +105,12 @@ public:
         }
         auto model = result.model.value();
         std::vector<std::byte> bufferData;
-        if (model.buffers.size() != 1 /*HAXXOR*/) {
+        if (model.buffers.size() == 0) {
             std::cout << "Unsupported buffer count\n";
             return;
         }
+        clearImageData(model);
+        processMeshes(model);
         if (model.images.size() > 0) {
             bufferData.assign(model.buffers.at(0).cesium.data.cbegin(), model.buffers.at(0).cesium.data.cend());
             uint64_t offset = bufferData.size();
@@ -86,17 +126,6 @@ public:
             for (auto& image : model.images) {
                 image.bufferView = bufferViewIdx;
             }
-            // int32_t bufferIdx = model.buffers.size();
-            // int32_t bufferViewIdx = model.bufferViews.size();
-            // CesiumGltf::Buffer buffer;
-            // buffer.cesium.data = _texturedata;
-            // buffer.byteLength = _texturedata.size();
-            // model.buffers.push_back(buffer);
-            // CesiumGltf::BufferView bufferView;
-            // bufferView.buffer = bufferIdx;
-            // bufferView.byteOffset = 0;
-            // bufferView.byteLength = _texturedata.size();
-            // model.bufferViews.push_back(bufferView);
         }
 
         // for (auto& buf : model.buffers) {
