@@ -12,14 +12,7 @@
 #include <queue>
 
 namespace fs = std::filesystem;
-
 namespace {
-
-struct input_data {
-  std::filesystem::path tileset_path;
-  std::filesystem::path workdir;
-  std::filesystem::path texture;
-};
 
 CesiumJsonReader::ReadJsonResult<Cesium3DTiles::Tileset>
 readTileset(const std::filesystem::path& filename) {
@@ -137,15 +130,6 @@ public:
         image.bufferView = bufferViewIdx;
       }
     }
-
-    // for (auto& buf : model.buffers) {
-    //     bufferData.insert(std::end(bufferData), std::begin(buf.cesium.data),
-    //     std::end(buf.cesium.data));
-    // }
-
-    // if (model.buffers.size() != 1) {
-    //     std::cout << "Buffers: " << model.buffers.size() << std::endl;
-    // }
 
     if (bufferData.size() == 0) {
       std::cout << "Error writing glb, empty buffer" << std::endl;

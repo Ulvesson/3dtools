@@ -1,11 +1,10 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <CesiumGltf/Model.h>
-
 #include <filesystem>
 #include <fstream>
 #include <vector>
+#include <cstddef>
 
 namespace util {
 
